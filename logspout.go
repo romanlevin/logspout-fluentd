@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net"
-	"time"
 
 	"github.com/gliderlabs/logspout/router"
 )
@@ -19,31 +18,63 @@ type FluentdAdapter struct {
 // Stream handles a stream of messages from Logspout. Implements router.logAdapter.
 func (adapter *FluentdAdapter) Stream(logstream chan *router.Message) {
 	for message := range logstream {
-		timestamp := int32(time.Now().Unix())
-		tag := "docker." + message.Container.Config.Hostname
-		record := make(map[string]string)
-		record["message"] = message.Data
-		record["docker.hostname"] = message.Container.Config.Hostname
-		record["docker.id"] = message.Container.ID
-		record["docker.image"] = message.Container.Config.Image
-		record["docker.name"] = message.Container.Name
-		for label, value := range message.Container.Config.Labels {
-			record["docker.label."+label] = value
-		}
-		data := []interface{}{tag, timestamp, record}
-
-		json, err := json.Marshal(data)
-		if err != nil {
-			log.Println("fluentd-adapter: ", err)
-			continue
+		dockerInfo := DockerInfo{
+			Name:     message.Container.Name,
+			ID:       message.Container.ID,
+			Image:    message.Container.Config.Image,
+			Hostname: message.Container.Config.Hostname,
 		}
 
-		_, err = adapter.conn.Write(json)
-		if err != nil {
-			log.Println("fluentd-adapter: ", err)
-			continue
+		var js []byte
+		var data map[string]interface{}
+
+		// Parse JSON-encoded message.Data
+		if err := json.Unmarshal([]byte(message.Data), &data); err != nil {
+			// The message is not in JSON, make a new JSON message.
+			msg := LogglyMessage{
+				Message: message.Data,
+				Docker:  dockerInfo,
+				Stream:  message.Source,
+			}
+
+			if js, err = json.Marshal(msg); err != nil {
+				// Log error message and continue parsing next line, if marshalling fails
+				log.Println("fluentd-adapter: could not marshal JSON:", err)
+				continue
+			}
+		} else {
+			// The message is already in JSON, add the docker specific fields.
+			data["docker"] = dockerInfo
+			data["stream"] = message.Source
+			// Return the JSON encoding
+			if js, err = json.Marshal(data); err != nil {
+				// Log error message and continue parsing next line, if marshalling fails
+				log.Println("fluentd-adapter: could not marshal JSON:", err)
+				continue
+			}
+		}
+
+		// To work with tls and tcp transports via json_lines codec
+		js = append(js, byte('\n'))
+
+		if _, err := adapter.conn.Write(js); err != nil {
+			// There is no retry option implemented yet
+			log.Fatal("fluentd-adapter: could not write:", err)
 		}
 	}
+}
+
+type DockerInfo struct {
+	Name     string `json:"name"`
+	ID       string `json:"id"`
+	Image    string `json:"image"`
+	Hostname string `json:"hostname"`
+}
+
+type LogglyMessage struct {
+	Message string     `json:"message"`
+	Stream  string     `json:"stream"`
+	Docker  DockerInfo `json:"docker"`
 }
 
 // NewFluentdAdapter creates a Logspout fluentd adapter instance.
