@@ -6,7 +6,7 @@ EXPOSE 80
 ENV GOPATH /go
 RUN apk-install go git mercurial build-base gdb
 RUN git clone https://github.com/gliderlabs/logspout.git /go/src/github.com/gliderlabs/logspout
-COPY ./logspout.go /go/src/github.com/gliderlabs/logspout/logspout-fluentd/logspout-fluentd.go
+COPY ./fluentd /go/src/github.com/gliderlabs/logspout/fluentd
 COPY ./modules.go /go/src/github.com/gliderlabs/logspout/modules.go
 WORKDIR /go/src/github.com/gliderlabs/logspout
 RUN go get
