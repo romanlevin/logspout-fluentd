@@ -47,6 +47,8 @@ func (adapter *FluentdAdapter) Stream(logstream chan *router.Message) {
 		timestamp := int32(time.Now().Unix())
 		tag := "logspout"
 
+		// Fluentd "in_forward" plugin `expects events to be an array object like: [tag, time ,record]
+		// or else it threats them as "broken chunks" (not documented in fluentd)
 		data := []interface{}{tag, timestamp, record}
 
 		if js, err = json.Marshal(data); err != nil {
