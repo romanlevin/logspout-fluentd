@@ -21,6 +21,7 @@ func (adapter *FluentdAdapter) Stream(logstream chan *router.Message) {
 	for message := range logstream {
 		dockerInfo := DockerInfo{
 			Name:     message.Container.Name,
+			Service:  message.Container.Config.Labels["com.docker.compose.service"],
 			ID:       message.Container.ID,
 			Image:    message.Container.Config.Image,
 			Hostname: message.Container.Config.Hostname,
@@ -69,6 +70,7 @@ func (adapter *FluentdAdapter) Stream(logstream chan *router.Message) {
 
 type DockerInfo struct {
 	Name     string `json:"name"`
+	Service  string `json:"service"`
 	ID       string `json:"id"`
 	Image    string `json:"image"`
 	Hostname string `json:"hostname"`
