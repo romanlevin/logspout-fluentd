@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net"
-	"time"
 
 	"github.com/gliderlabs/logspout/router"
 )
@@ -45,7 +44,7 @@ func (adapter *FluentdAdapter) Stream(logstream chan *router.Message) {
 			record["stream"] = message.Source
 		}
 
-		timestamp := int32(time.Now().Unix())
+		timestamp := float64(message.Time.UnixNano()) / 1000000000
 		tag := "logspout"
 
 		// Fluentd "in_forward" plugin `expects events to be an array object like: [tag, time ,record]
